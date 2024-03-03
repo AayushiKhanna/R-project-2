@@ -1,0 +1,196 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+packages = c('quantmod')
+
+# Install all Packages with Dependencies
+install.packages(packages, dependencies = TRUE)
+
+# Load all Packages
+lapply(packages, require, character.only = TRUE)
+
+# Install and load the quantmod package
+install.packages("quantmod")
+library(quantmod)
+install.packages("quantmod", dependencies = TRUE)
+
+```
+```{r}
+# Required Packages
+packages = c('tseries', 'forecast')
+
+# Install all Packages with Dependencies
+install.packages(packages, dependencies = TRUE)
+
+install.packages("tseries")
+
+install.packages("forecast")
+
+library(forecast)
+
+
+```
+```{r}
+# Load all Packages
+lapply(packages, require, character.only = TRUE)
+```
+```{r}
+# Required Packages
+packages = c('FinTS', 'rugarch')
+
+# Install all Packages with Dependencies
+install.packages(packages, dependencies = TRUE)
+```
+```{r}
+# Load all Packages
+lapply(packages, require, character.only = TRUE)
+```
+```{r}
+# Define the stock symbol
+stock_symbol <- 'RELIANCE.NS'  #IBM is the ticker symbol for Reliance Ltd BSE
+
+# Define the start and end dates
+start_date <- as.Date('2019-01-01')
+end_date <- as.Date('2023-12-31')
+
+# Fetch the stock data
+quantmod::getSymbols(Symbols = stock_symbol, src = 'yahoo', from = start_date, to = end_date, env = stock_data)
+```
+```{r}
+# Extract closing prices
+rel_prices <- Cl(stock_data[[stock_symbol]])
+
+# Remove missing values
+rel_prices <- na.omit(rel_prices)
+
+# View the resulting closing prices
+head(rel_prices)
+
+```
+```{r}
+# Check the class of the stock_price object
+class(rel_prices)
+```
+```{r}
+
+# Augmented Dickey-Fuller (ADF) Test for Stationarity with Reliance Enterprises Ltd on BSE Data
+# *******************************************************************
+
+# Perform Augmented Dickey-Fuller (ADF) Test
+adf_result <- tseries::adf.test(rel_prices)
+
+
+# Print the ADF test result
+print(adf_result)
+
+```
+```{r}
+#In this case, since the p-value (0.4087) is greater than a typical significance
+#level like 0.05, we fail to reject the null hypothesis.
+#Therefore, we do not have enough evidence to conclude that the time series is stationary.
+
+```
+
+```{r}
+rel_ds = diff(log(rel_prices)); plot(rel_prices) #Reliance Ltd  (First)return  #Difference Time-Series
+
+rel_ds=na.omit(rel_ds)
+adf_test_rel_ds = tseries::adf.test(rel_ds); adf_test_rel_ds
+```
+```{r}
+ adani_ds = diff(log(rel_prices)); plot(rel_prices) # Reliance Enterprices Ltd  (First)return Difference Time-Series
+```
+```{r}
+# Ljung-Box Test for Autocorrelation -  Data
+# ***********************************************
+
+lb_test_rel_ds = Box.test(rel_ds)# Inference : reliance Difference (Stationary)
+ lb_test_rel_ds
+
+```
+```{r}
+#In this case, since the p-value (0.1165) is much greater than a typical significance level like 0.05,
+ 
+#we reject the null hypothesis. Therefore, we have evidence to suggest that there is significant autocorrelation in the time series. | NULL: No Auto correlation | Alternate: Auto Correlation
+```
+
+```{r}
+#Autocorrelation Function (ACF) | Partial Autocorrelation Function (PACF)
+# *****************************************************************************
+
+acf(rel_prices) # ACF of reliance Series
+```
+```{r}
+pacf(rel_prices) # PACF of reliance Series
+```
+
+```{r}
+acf(rel_ds) # ACF of reliance Series
+
+```
+```{r}
+pacf(rel_ds) # PACF of reliance  Difference (Stationary) Series
+```
+```{r}
+arma_pq_rel_ds <-forecast::auto.arima(rel_ds)
+
+```
+
+```{r}
+rel_ds_fpq = forecast(arma_pq_rel_ds, h = 500)
+plot(rel_ds_fpq)
+```
+
+```{r}
+lb_test_arma_pq_rel_ds = Box.test(arma_pq_rel_ds$residuals); 
+lb_test_arma_pq_rel_ds
+```
+```{r}
+
+# Test for Volatility Clustering or Heteroskedasticity: Box Test
+rel_ret_sq = arma_pq_rel_ds$residuals^2 # Residual Variance (Since Mean Returns is approx. 0)
+plot(rel_ret_sq)
+
+```
+```{r}
+rel_ret_sq_box_test = Box.test(rel_ret_sq,lag = 1 ) # H0: Return Variance Series is Not Serially Correlated
+rel_ret_sq_box_test # Inference : Return Variance Series is Autocorrelated (Has Volatility Clustering)
+```
+```{r}
+# Test for Volatility Clustering or Heteroskedasticity: ARCH Test
+rel_ret_arch_test = ArchTest(arma_pq_rel_ds$residuals^2,lag = 1) # H0: No ARCH Effects
+rel_ret_arch_test # Inference : Return Series is Heteroskedastic (Has Volatility Clustering)
+
+```
+
+```{r}
+# GARCH Model
+garch_model1 = ugarchspec(variance.model = list(model = 'sGARCH', garchOrder = c(1,1)), mean.model = list(armaOrder = c(0,1), include.mean = TRUE))
+rel_ret_garch1 = ugarchfit(garch_model1, data = arma_pq_rel_ds$residuals^2); rel_ret_garch1
+
+```
+```{r}
+# GARCH Forecast
+rel_ret_garch_forecast1 = ugarchforecast(rel_ret_garch1, n.ahead = 500); rel_ret_garch_forecast1
+
+plot(rel_ret_garch_forecast1, which = 1)
+     
+```
+
+```{r}
+# Plot the specified aspect of the GARCH forecast
+plot(rel_ret_garch_forecast1, which = 3)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
